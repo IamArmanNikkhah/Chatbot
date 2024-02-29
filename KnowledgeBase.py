@@ -1,5 +1,7 @@
 import sqlite3
 from typing import List, Tuple, Any
+import numpy as np
+from scipy.spatial.distance import cosine
 
 class ChatbotDatabase:
     def __init__(self, db_path: str):
@@ -18,7 +20,7 @@ class ChatbotDatabase:
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS Embeddings (
                 term_id INTEGER UNIQUE NOT NULL,
-                embedding BLOB NOT NULL,
+                embedding BLOB UNIQUE NOT NULL,
                 FOREIGN KEY (term_id) REFERENCES Terms(term_id)
             );
         ''')
@@ -67,8 +69,47 @@ class ChatbotDatabase:
         """Execute an arbitrary query for flexibility."""
         self.cursor.execute(query, params)
         return self.cursor.fetchall()
+   
+    def retrieve_facts_by_embedding(self, input_embedding: np.ndarray) -> list:
+        """
+        Retrieves facts and their similarity scores from the database based on the
+        similarity of the input embedding to the stored embeddings. This function
+        calculates cosine similarity between embeddings and selects the closest matches.
+
+        Parameters:
+        - input_embedding (np.ndarray): The input embedding vector.
+
+        Returns:
+        - list of tuples: Each tuple contains a fact and its corresponding similarity score.
+        """
+        # Fetch all embeddings from the database
+        self.cursor.execute('SELECT term_id, embedding FROM Embeddings')
+        embeddings = self.cursor.fetchall()
+
+        # Calculate similarities and store them with their term_id
+        similarities = []
+        for term_id, stored_embedding in embeddings:
+            stored_embedding_arr = np.frombuffer(stored_embedding, dtype=np.float32)
+            similarity = 1 - cosine(input_embedding, stored_embedding_arr)
+            similarities.append((similarity, term_id))
+
+        # Sort based on similarity (descending)
+        similarities.sort(reverse=True, key=lambda x: x[0])
+
+        # Retrieve facts for the top N matches, N could be adjusted based on requirements
+        top_matches = similarities[:5]  # Assuming we take the top 5 matches
+        facts_with_scores = []
+        for similarity, term_id in top_matches:
+            self.cursor.execute('SELECT fact FROM Facts WHERE term_id = ?', (term_id,))
+            facts = self.cursor.fetchall()
+            for fact in facts:
+                # Append both the fact and its similarity score to the result
+                facts_with_scores.append((fact[0], similarity))
+
+        return facts_with_scores
 
     # Additional methods for indexing and searching could be added here
+
 
 # Example Usage
 if __name__ == "__main__":
