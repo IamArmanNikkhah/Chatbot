@@ -8,7 +8,7 @@ class ChatbotDatabase:
         self.setup_database()
 
     def setup_database(self):
-        """Initialize the database tables."""
+        """Initialize the database tables with adjusted schema for unique embeddings."""
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS Terms (
                 term_id INTEGER PRIMARY KEY,
@@ -17,8 +17,7 @@ class ChatbotDatabase:
         ''')
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS Embeddings (
-                embedding_id INTEGER PRIMARY KEY,
-                term_id INTEGER NOT NULL,
+                term_id INTEGER UNIQUE NOT NULL,
                 embedding BLOB NOT NULL,
                 FOREIGN KEY (term_id) REFERENCES Terms(term_id)
             );
@@ -33,20 +32,26 @@ class ChatbotDatabase:
         ''')
         self.connection.commit()
 
-    def add_term(self, term: str) -> int:
-        """Add a term to the database, avoiding duplicates."""
+    def add_term_with_embedding(self, term: str, embedding: bytes):
+        """Add a term along with its unique embedding."""
         self.cursor.execute('INSERT OR IGNORE INTO Terms (term) VALUES (?)', (term,))
+        term_id = self.cursor.lastrowid
+        if term_id:  # If the term was newly added
+            self.cursor.execute('INSERT INTO Embeddings (term_id, embedding) VALUES (?, ?)', (term_id, embedding))
+        else:  # If the term already existed, update its embedding
+            self.cursor.execute('''
+                UPDATE Embeddings
+                SET embedding = ?
+                WHERE term_id = (SELECT term_id FROM Terms WHERE term = ?)
+            ''', (embedding, term))
         self.connection.commit()
-        return self.cursor.lastrowid
 
-    def add_embedding(self, term_id: int, embedding: bytes):
-        """Add an embedding for a term."""
-        self.cursor.execute('INSERT INTO Embeddings (term_id, embedding) VALUES (?, ?)', (term_id, embedding))
-        self.connection.commit()
-
-    def add_fact(self, term_id: int, fact: str):
-        """Add a fact associated with a term."""
-        self.cursor.execute('INSERT INTO Facts (term_id, fact) VALUES (?, ?)', (term_id, fact))
+    def add_fact(self, term: str, fact: str):
+        """Add a fact associated with a term, identified by the term text."""
+        self.cursor.execute('''
+            INSERT INTO Facts (term_id, fact) 
+            VALUES ((SELECT term_id FROM Terms WHERE term = ?), ?)
+        ''', (term, fact))
         self.connection.commit()
 
     def retrieve_facts(self, term: str) -> List[str]:
@@ -68,14 +73,14 @@ class ChatbotDatabase:
 # Example Usage
 if __name__ == "__main__":
     db = ChatbotDatabase('chatbot_database.db')
-    # Adding a term and its embedding
+  # Adding a term and its unique embedding
     term = "Python programming"
     embedding = b'some_binary_representation'  # Simplified for illustration
-    term_id = db.add_term(term)
-    db.add_embedding(term_id, embedding)
+    db.add_term_with_embedding(term, embedding)
 
-    # Adding a fact related to the term
-    db.add_fact(term_id, "Python is a high-level, interpreted programming language.")
+    # Adding facts related to the term
+    db.add_fact(term, "Python is a high-level, interpreted programming language.")
+    db.add_fact(term, "Guido van Rossum created Python.")
 
     # Retrieving facts for a term
     facts = db.retrieve_facts(term)
