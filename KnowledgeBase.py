@@ -1,92 +1,83 @@
 import sqlite3
-from sqlite3 import Error
+from typing import List, Tuple, Any
 
 class ChatbotDatabase:
-    def __init__(self, db_file):
-        """Initialize the database connection."""
-        self.conn = self.create_connection(db_file)
-        self.create_table()
+    def __init__(self, db_path: str):
+        self.connection = sqlite3.connect(db_path)
+        self.cursor = self.connection.cursor()
+        self.setup_database()
 
-    def create_connection(self, db_file):
-        """Create a database connection to the SQLite database."""
-        conn = None
-        try:
-            conn = sqlite3.connect(db_file)
-            return conn
-        except Error as e:
-            print(e)
-        return conn
+    def setup_database(self):
+        """Initialize the database tables."""
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Terms (
+                term_id INTEGER PRIMARY KEY,
+                term TEXT UNIQUE NOT NULL
+            );
+        ''')
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Embeddings (
+                embedding_id INTEGER PRIMARY KEY,
+                term_id INTEGER NOT NULL,
+                embedding BLOB NOT NULL,
+                FOREIGN KEY (term_id) REFERENCES Terms(term_id)
+            );
+        ''')
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Facts (
+                fact_id INTEGER PRIMARY KEY,
+                term_id INTEGER NOT NULL,
+                fact TEXT NOT NULL,
+                FOREIGN KEY (term_id) REFERENCES Terms(term_id)
+            );
+        ''')
+        self.connection.commit()
 
-    def create_table(self):
-        """Create Terms and Facts tables."""
-        create_terms_table_sql = """CREATE TABLE IF NOT EXISTS Terms (
-                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                        term TEXT UNIQUE
-                                    );"""
-        create_facts_table_sql = """CREATE TABLE IF NOT EXISTS Facts (
-                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                        term_id INTEGER,
-                                        fact TEXT,
-                                        FOREIGN KEY (term_id) REFERENCES Terms (id)
-                                    );"""
-        self.execute_query(create_terms_table_sql)
-        self.execute_query(create_facts_table_sql)
-        self.execute_query("CREATE VIRTUAL TABLE IF NOT EXISTS FactSearch USING fts5(fact);")
+    def add_term(self, term: str) -> int:
+        """Add a term to the database, avoiding duplicates."""
+        self.cursor.execute('INSERT OR IGNORE INTO Terms (term) VALUES (?)', (term,))
+        self.connection.commit()
+        return self.cursor.lastrowid
 
-    def execute_query(self, sql, params=()):
-        """Execute a generic SQL query."""
-        try:
-            c = self.conn.cursor()
-            c.execute(sql, params)
-            self.conn.commit()
-        except Error as e:
-            print(e)
+    def add_embedding(self, term_id: int, embedding: bytes):
+        """Add an embedding for a term."""
+        self.cursor.execute('INSERT INTO Embeddings (term_id, embedding) VALUES (?, ?)', (term_id, embedding))
+        self.connection.commit()
 
-    def add_term(self, term):
-        """Add a term if it's not already in the database."""
-        sql = "INSERT OR IGNORE INTO Terms (term) VALUES (?)"
-        self.execute_query(sql, (term,))
+    def add_fact(self, term_id: int, fact: str):
+        """Add a fact associated with a term."""
+        self.cursor.execute('INSERT INTO Facts (term_id, fact) VALUES (?, ?)', (term_id, fact))
+        self.connection.commit()
 
-    def add_fact(self, term, fact):
-        """Add a fact related to a term, ensuring no duplicates."""
-        self.add_term(term)  # Ensure the term exists
-        term_id_query = "SELECT id FROM Terms WHERE term = ?"
-        c = self.conn.cursor()
-        c.execute(term_id_query, (term,))
-        term_id = c.fetchone()[0]
+    def retrieve_facts(self, term: str) -> List[str]:
+        """Retrieve facts for a given term."""
+        self.cursor.execute('''
+            SELECT fact FROM Facts
+            INNER JOIN Terms ON Facts.term_id = Terms.term_id
+            WHERE term = ?
+        ''', (term,))
+        return [row[0] for row in self.cursor.fetchall()]
 
-        # Check if the fact already exists for this term
-        check_fact_sql = "SELECT id FROM Facts WHERE term_id = ? AND fact = ?"
-        c.execute(check_fact_sql, (term_id, fact))
-        if c.fetchone() is None:
-            # Add the fact if it doesn't exist
-            add_fact_sql = "INSERT INTO Facts (term_id, fact) VALUES (?, ?)"
-            self.execute_query(add_fact_sql, (term_id, fact))
-            # Add to full-text search table
-            add_to_search_sql = "INSERT INTO FactSearch (fact) VALUES (?)"
-            self.execute_query(add_to_search_sql, (fact,))
+    def execute_query(self, query: str, params: Tuple[Any, ...] = ()) -> List[Tuple]:
+        """Execute an arbitrary query for flexibility."""
+        self.cursor.execute(query, params)
+        return self.cursor.fetchall()
 
-    def retrieve_facts(self, term):
-        """Retrieve facts related to a term."""
-        sql = """SELECT f.fact
-                 FROM Facts f
-                 JOIN Terms t ON f.term_id = t.id
-                 WHERE t.term = ?"""
-        c = self.conn.cursor()
-        c.execute(sql, (term,))
-        return c.fetchall()
-
-    def search_facts(self, search_query):
-        """Search facts using full-text search."""
-        sql = "SELECT fact FROM FactSearch WHERE FactSearch MATCH ?"
-        c = self.conn.cursor()
-        c.execute(sql, (search_query,))
-        return c.fetchall()
+    # Additional methods for indexing and searching could be added here
 
 # Example Usage
 if __name__ == "__main__":
-    db = ChatbotDatabase("chatbot_database.db")
-    db.add_fact("Python", "Python is a high-level, interpreted programming language.")
-    db.add_fact("Python", "Python supports multiple programming paradigms.")
-    print(db.retrieve_facts("Python"))
-    print(db.search_facts("interpreted programming"))
+    db = ChatbotDatabase('chatbot_database.db')
+    # Adding a term and its embedding
+    term = "Python programming"
+    embedding = b'some_binary_representation'  # Simplified for illustration
+    term_id = db.add_term(term)
+    db.add_embedding(term_id, embedding)
+
+    # Adding a fact related to the term
+    db.add_fact(term_id, "Python is a high-level, interpreted programming language.")
+
+    # Retrieving facts for a term
+    facts = db.retrieve_facts(term)
+    print(facts)
+
