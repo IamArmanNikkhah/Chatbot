@@ -1,6 +1,8 @@
 import os
 import spacy
 from spacy.lang.en.stop_words import STOP_WORDS
+from sklearn.feature_extraction.text import TfidfVectorizer
+import numpy as np
 
 
 
@@ -40,6 +42,43 @@ def process_directory(input_dir, output_dir):
         if filename.endswith('.txt'): 
             clean_text_file(input_dir, output_dir, filename)
             print(f"Processed {filename}")
+
+
+
+def extract_important_terms(directory, max_features=40):
+    """Extracts important terms from cleaned text files in a directory using TF-IDF."""
+    texts = []
+    file_names = []
+
+    # Read and preprocess text files
+    for file_name in os.listdir(directory):
+        file_path = os.path.join(directory, file_name)
+        with open(file_path, 'r', encoding='utf-8') as file:
+            texts.append(file.read().lower())  # Ensure text is in lowercase
+            file_names.append(file_name)
+
+    # Calculate TF-IDF
+    vectorizer = TfidfVectorizer(stop_words='english', max_features=max_features)
+    tfidf_matrix = vectorizer.fit_transform(texts)
+
+    # Extract feature names and tf-idf scores
+    feature_names = vectorizer.get_feature_names_out()
+    scores = np.mean(tfidf_matrix, axis=0).tolist()[0]  # Mean tf-idf score for each term across all documents
+    terms_scores = list(zip(feature_names, scores))
+
+    # Sort terms by their score and select top 25 to 40
+    important_terms = sorted(terms_scores, key=lambda x: x[1], reverse=True)[:max_features]
+
+    return important_terms
+
+# Example usage
+directory = "cleaned_content"
+important_terms = extract_important_terms(directory)
+for term, score in important_terms:
+    print(f"{term}: {score}")
+
+
+
 
 # Example usage
 input_dir = "scraped_content"
