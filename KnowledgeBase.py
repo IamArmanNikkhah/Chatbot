@@ -114,7 +114,7 @@ class ChatbotDatabase:
 # Example Usage
 if __name__ == "__main__":
     db = ChatbotDatabase('chatbot_database.db')
-  # Adding a term and its unique embedding
+    # Adding a term and its unique embedding
     term = "Python programming"
     embedding = b'some_binary_representation'  # Simplified for illustration
     db.add_term_with_embedding(term, embedding)
