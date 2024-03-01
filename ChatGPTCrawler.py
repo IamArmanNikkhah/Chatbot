@@ -2,6 +2,9 @@ import os
 import openai
 import re
 
+
+OPENAI_API_KEY = "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"
+
 class PresidentsQA:
     """
     A class to generate questions and answers about U.S. Presidents using the OpenAI API, allowing for a specified number of question-answer pairs.
