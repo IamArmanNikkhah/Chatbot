@@ -84,6 +84,7 @@ class PresidentsQA:
         if qa_pairs:
             for q, a in qa_pairs.items():
                 print(f"Q: {q}\nA: {a}\n")
+            return self._parse_qa_pairs(response)
         else:
             print("Failed to generate question and answer pairs.")
 
@@ -110,11 +111,19 @@ class PresidentsQA:
         if qa_pairs:
             for q, a in qa_pairs.items():
                 print(f"Q: {q}\nA: {a}\n")
+            return self._parse_qa_pairs(response)
+        
         else:
             print("Failed to generate question and answer pairs with specified term.")
 
 # Example usage
 if __name__ == "__main__":
     qa = PresidentsQA()
-    qa.generateQA(2)  # Generate 2 general Q&A pairs
-    qa.generateQA_withTerm("Car", 5)  # Generate 2 Q&A pairs including the term "Lincoln"
+    
+    general_qa_pairs = qa.generateQA(2)  # Generate 2 general Q&A pairs
+    term_qa_pairs    = qa.generateQA_withTerm("Car", 5)  # Generate 2 Q&A pairs including the term "Car"
+    
+    # Example on how to integrate the results into a dictionary or further processing
+    all_qa_pairs = {**general_qa_pairs, **term_qa_pairs}
+    for question, answer in all_qa_pairs.items():
+        print(f"Q: {question}\nA: {answer}\n")
