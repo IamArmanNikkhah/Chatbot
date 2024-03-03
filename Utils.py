@@ -72,18 +72,102 @@ def extract_important_terms(directory, max_features=40):
     return important_terms
 
 # Example usage
-directory = "cleaned_content"
-important_terms = extract_important_terms(directory)
-for term, score in important_terms:
-    print(f"{term}: {score}")
-
-
-
+#directory = "cleaned_content"
+#important_terms = extract_important_terms(directory)
+#for term, score in important_terms:
+#    print(f"{term}: {score}")
 
 # Example usage
-input_dir = "scraped_content"
-output_dir = "cleaned_content"
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
+#input_dir = "scraped_content"
+#output_dir = "cleaned_content"
+#if not os.path.exists(output_dir):
+#    os.makedirs(output_dir)
 
-process_directory(input_dir, output_dir)
+#process_directory(input_dir, output_dir)
+
+
+# Import necessary libraries
+import requests
+from bs4 import BeautifulSoup
+
+def fetch_page_content(url):
+    """
+    Fetches the content of a webpage.
+    
+    Args:
+        url (str): The URL of the webpage to fetch.
+        
+    Returns:
+        str: The HTML content of the page.
+        
+    Raises:
+        requests.exceptions.RequestException: If an error occurs during the request.
+    """
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raises an HTTPError if the status is 4xx, 5xx
+        return response.text
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching the page content: {e}")
+        return None
+
+def parse_html(html_content):
+    """
+    Parses HTML content to create a BeautifulSoup object.
+    
+    Args:
+        html_content (str): The HTML content to parse.
+        
+    Returns:
+        BeautifulSoup: The BeautifulSoup object for parsed HTML content.
+    """
+    return BeautifulSoup(html_content, 'html.parser')
+
+def extract_links(soup, base_url):
+    """
+    Extracts and formats Wikipedia links related to US Presidents based on the provided HTML structure.
+    
+    Args:
+        soup (BeautifulSoup): The BeautifulSoup object containing the parsed HTML content.
+        base_url (str): The base URL to append to relative links for completeness.
+        
+    Returns:
+        list of str: A list of formatted strings containing president names and their Wikipedia links.
+    """
+    links = []
+    # Find all 'td' elements with a 'data-sort-value' attribute, which contains the president's name
+    for td in soup.find_all('td', {'data-sort-value': True}):
+        # Extracting the name and the relative link
+        president_name = td['data-sort-value']
+        link_tag = td.find('a', href=True)
+        if link_tag and president_name:
+            # Construct the full URL
+            full_link = base_url + link_tag['href']
+            links.append(f"{president_name}: {full_link}")
+    return links
+
+def display_links(links):
+    """
+    Prints each link in the list on a new line.
+    
+    Args:
+        links (list of str): The list of links to display.
+    """
+    for link in links:
+        print(link)
+
+# Main program function
+def main():
+    url = "https://en.wikipedia.org/wiki/List_of_presidents_of_the_United_States"
+    base_url = "https://en.wikipedia.org"
+    
+    html_content = fetch_page_content(url)
+    if html_content:
+        soup = parse_html(html_content)
+        links = extract_links(soup, base_url)
+        display_links(links)
+    else:
+        print("Failed to fetch or parse page content.")
+
+
+
