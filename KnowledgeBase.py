@@ -108,7 +108,10 @@ class ChatbotDatabase:
 
         return facts_with_scores
 
-    # Additional methods for indexing and searching could be added here
+    def retrive_term_by_term_id(self, term_id: int) -> str:
+        """Retrieve the term associated with a given term_id."""
+        self.cursor.execute('SELECT term FROM Terms WHERE term_id = ?', (term_id,))
+        return self.cursor.fetchone()[0]
 
 
 # Example Usage
