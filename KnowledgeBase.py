@@ -89,7 +89,7 @@ class ChatbotDatabase:
         # Calculate similarities and store them with their term_id
         similarities = []
         for term_id, stored_embedding in embeddings:
-            stored_embedding_arr = np.frombuffer(stored_embedding, dtype=np.float32)
+            stored_embedding_arr = np.frombuffer(stored_embedding, dtype=np.float64)
             similarity = 1 - cosine(input_embedding, stored_embedding_arr)
             similarities.append((similarity, term_id))
 
