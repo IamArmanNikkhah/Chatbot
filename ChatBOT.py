@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 # Initialize NLP model for Named-entity Recognition (NER)
 nlp = spacy.load("en_core_web_sm")
 
-DATABASE_PATH = "PATH"
+DATABASE_PATH = '/content/drive/MyDrive/Colab Notebooks/chatbot_database.db'
 
 
 class ChatBot:
@@ -20,6 +20,7 @@ class ChatBot:
         self.favorite_president = ""
         self.embedder = OpenAIEmbedder()
         self.database = ChatbotDatabase(DATABASE_PATH)
+        self.similarity_threshold = 0.5
 
     def introduce_and_ask_info(self):
         print(np.random.choice(self.greetings))
@@ -70,26 +71,41 @@ class ChatBot:
 
     
     def handle_user_query(self, query: str):
-        questions = self.extract_questions(query)
+      # Extract questions from the query; if none, treat the entire query as a single question.
+      extracted_questions = self.extract_questions(query)
     
-        if not questions:  # If no questions were extracted, treat the whole input as a single question.
-            questions = [query]
+      if not extracted_questions:
+        extracted_questions = [query]
     
-        for question in questions:
-            query_embedding = self.embedder.get_embedding(question)
-            if query_embedding is not None:
-                facts = self.database.retrieve_facts_by_embedding(query_embedding)
-                if facts:
-                    print(f"For your question: '{question}'")
-                    print(f"Here's something interesting: {facts[0][1]}")
-                    print("You might also find these questions intriguing:")
-                    for fact in facts[1:]:
-                        print(f"- {fact[0]}")
-                        print("\n")  # Add a newline for better readability between questions
-                else:
-                    print(f"I'm sorry, I couldn't find an answer for your question: '{question}'")
+      # Process each question separately
+      for question in extracted_questions:
+        # Generate an embedding for the question
+        question_embedding = self.embedder.get_embedding(question)
+        
+        if question_embedding is not None:
+            # Retrieve relevant facts based on the embedding
+            retrieved_facts = self.database.retrieve_facts_by_embedding(question_embedding)
+
+            # Check if the top fact meets the similarity threshold
+            if retrieved_facts and retrieved_facts[0][2] >= self.similarity_threshold:
+                print(f"🔍 For your question: \"{question}\"")
+                print(f"✨ Interesting Fact: {retrieved_facts[0][1]}")
+
+                # Suggest additional related questions
+                print("🤔 You might also find these questions intriguing:")
+                for fact in retrieved_facts[1:]:
+                    if fact[2] >= self.similarity_threshold - 0.2:
+                        print(f"- {self.database.retrieve_term_by_term_id(fact[0])}")
+                        print("\n")  # Enhance readability with a newline between questions
             else:
-                print("I'm sorry, I couldn't process your request.")
+                 # Handle cases where no satisfying facts were found
+                  print(f"🧐 For your question: \"{question}\", I couldn't find enough information.")
+        else:
+              # Handle cases where the query couldn't be processed
+              print("❗ I'm sorry, I couldn't process your request. Please try rephrasing.")
+
+
+        
 
 
 
