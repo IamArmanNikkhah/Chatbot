@@ -3,7 +3,7 @@ import openai
 import re
 
 
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = ""
 
 class PresidentsQA:
     """
